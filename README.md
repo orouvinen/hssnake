@@ -4,7 +4,7 @@ HsWorm is the classic worm game in a simple text-based form.
 The main purpose for the game was to have a learning project in Haskell.
 
 You should be able to clone the repository and build the project
-with ```stack build``` and then run the game with  ```stack exec hs-worm```.
+with ```stack build``` and then run the game with  ```stack exec hsworm-exe```.
 (I have only tested this under Linux.)
 
 
