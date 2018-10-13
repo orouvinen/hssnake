@@ -1,5 +1,4 @@
-module HsWorm
-where
+module HsWorm where
 
 import Control.Monad.State
 import Data.Char
@@ -32,6 +31,7 @@ data GameState = GameState
     , moveInterval :: Milliseconds
     , lastUpdate :: Milliseconds
     , randomGen :: StdGen
+    , errorMsg :: Maybe String
     {- Using 'clear' on every update would cause unwanted flickering. As a remedy,
        keep track of screen positions that have cleared so they can be erased
        by drawing a space character
@@ -53,6 +53,7 @@ initialState = GameState
     , lastUpdate = 0
     , clearPositions = []
     , randomGen = mkStdGen 0
+    , errorMsg = Nothing
     }
 
 
@@ -95,7 +96,8 @@ isWormAlive = do
     s <- get
     let wormX = x $ head $ worm s
     let wormY = y $ head $ worm s
-    let isInsideGameArea = wormX >= 0 && wormX <= gameWidth && wormY >= 0 && wormY < gameHeight
+    let isInsideGameArea = wormX >= 0 && wormX <= gameWidth &&
+                           wormY >= 0 && wormY < gameHeight
 
     return $ isInsideGameArea && (not . selfCollision $ worm s)
 
