@@ -53,7 +53,6 @@ initialState = GameState
     , lastUpdate = 0
     , clearPositions = []
     , randomGen = mkStdGen 0
-    , errorMsg = Nothing
     }
 
 
