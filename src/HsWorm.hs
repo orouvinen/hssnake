@@ -31,7 +31,6 @@ data GameState = GameState
     , moveInterval :: Milliseconds
     , lastUpdate :: Milliseconds
     , randomGen :: StdGen
-    , errorMsg :: Maybe String
     {- Using 'clear' on every update would cause unwanted flickering. As a remedy,
        keep track of screen positions that have cleared so they can be erased
        by drawing a space character
@@ -66,10 +65,10 @@ gameLoop fromState = do
     if quit state || (not . alive) state
         then return state
         else let renderAction = if updated
-                                then defaultWindow >>=
-                                    flip updateWindow (drawGame state) >>
-                                    render
-                                else return ()
+                                    then defaultWindow >>=
+                                        flip updateWindow (drawGame state) >>
+                                        render
+                                    else return ()
             in renderAction >> gameLoop state
     
 
