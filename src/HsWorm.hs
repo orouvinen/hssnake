@@ -1,5 +1,6 @@
 module HsWorm where
 
+import Control.Monad.Reader
 import Control.Monad.State
 import Data.Char
 import Data.Time.Clock.POSIX
@@ -8,18 +9,33 @@ import UI.NCurses
 
 type Milliseconds = Int
 
-data Direction = DirUp | DirDown | DirLeft | DirRight deriving Show
-
-data Position = Position { x :: Int, y :: Int } deriving Show
+data Direction  = DirUp | DirDown | DirLeft | DirRight deriving Show
+data Position   = Position { x :: Int, y :: Int } deriving Show
 instance Eq Position where
     (==) a b = x a == x b && y a == y b
 
 
-initialWormLength = 3
-gameWidth = 80 
-gameHeight = 25
-totalWidth = gameWidth + 2
-totalHeight = gameHeight + 2
+initialWormLength   = 3
+gameWidth           = 80 
+gameHeight          = 25
+totalWidth          = gameWidth + 2
+totalHeight         = gameHeight + 2
+
+headColor :: Color
+headColor = ColorWhite
+
+bodyColor :: Color
+bodyColor = ColorBlue
+
+omnomColor :: Color
+omnomColor  = ColorYellow
+
+-- For now, game env. only holds color information for different screen elements
+data GameEnv = GameEnv
+  { headColorID :: ColorID
+  , bodyColorID :: ColorID
+  , omnomColorID :: ColorID
+  }
 
 data GameState = GameState
     { worm :: [Position]
@@ -42,7 +58,11 @@ data GameState = GameState
 
 initialState :: GameState
 initialState = GameState
-    { worm = [Position { x = gameWidth `div` 2 + x, y = gameHeight `div` 2} | x <- [0.. initialWormLength - 1]]
+    { worm = [ Position
+                { x = gameWidth `div` 2 + x
+                , y = gameHeight `div` 2
+                } | x <- [0.. initialWormLength - 1]
+             ]
     , direction = DirLeft
     , alive = True
     , score = 0
@@ -55,21 +75,22 @@ initialState = GameState
     }
 
 
-gameLoop :: GameState -> Curses GameState
-gameLoop fromState = do
+gameLoop :: GameEnv -> GameState -> Curses GameState
+gameLoop env fromState = do
     event <- defaultWindow >>= nonBlockingPeekEvent
     millisecsNow <- (round . (* 1000)) <$> liftIO getPOSIXTime
 
     let (updated, state) = runState (updateGame millisecsNow event) fromState
+    let drawUpdate = runReaderT (drawGame state) env
 
     if quit state || (not . alive) state
         then return state
         else let renderAction = if updated
                                     then defaultWindow >>=
-                                        flip updateWindow (drawGame state) >>
+                                        flip updateWindow drawUpdate >>
                                         render
                                     else return ()
-            in renderAction >> gameLoop state
+            in renderAction >> gameLoop env state
     
 
 updateGame :: Milliseconds -> Maybe Event -> State GameState Bool
@@ -84,7 +105,6 @@ updateGame now event = do
             s <- moveWorm
             alive' <- isWormAlive
             put s { lastUpdate = now, alive = alive' }
-
             return True
         else return False
 
@@ -92,8 +112,8 @@ updateGame now event = do
 isWormAlive :: State GameState Bool
 isWormAlive = do
     s <- get
-    let wormX = x $ head $ worm s
-    let wormY = y $ head $ worm s
+    let wormX = (x . head . worm) s
+    let wormY = (y . head . worm) s
     let isInsideGameArea = wormX >= 0 && wormX <= gameWidth &&
                            wormY >= 0 && wormY < gameHeight
 
@@ -172,22 +192,31 @@ nonBlockingPeekEvent :: Window -> Curses (Maybe Event)
 nonBlockingPeekEvent w = getEvent w (Just 0)
 
 
-drawGame :: GameState -> Update ()
+drawGame :: GameState -> ReaderT GameEnv Update ()
 drawGame s = do
-    mapM_ (stringPos " ") (fmap screenOffset (clearPositions s))
-    drawWorm $ worm s
+    env <- ask
+    drawWorm $ worm s 
+    lift $ do
+        mapM_ (stringPos " ") (fmap screenOffset (clearPositions s))
 
-    (cursorPos . screenOffset $ omnom s) >> drawString "+"
+        setColor $ omnomColorID env
+        (cursorPos . screenOffset $ omnom s) >> drawString "+"
+        setColor defaultColorID
 
-    drawBorder Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+        drawBorder Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
-    moveCursor 0 1
-    drawString $ "Score: " ++ (show $ score s)
+        moveCursor 0 1
+        drawString $ "Score: " ++ (show $ score s)
 
 
-drawWorm :: [Position] -> Update ()
-drawWorm (head:tail) =
-    stringPos "@" (screenOffset head) >> mapM_ (stringPos "#" . screenOffset) tail
+drawWorm :: [Position] -> ReaderT GameEnv Update ()
+drawWorm (head:tail) = do
+    env <- ask
+    lift $ do
+        setColor $ headColorID env
+        stringPos "@" (screenOffset head)
+        setColor $ bodyColorID env
+        mapM_ (stringPos "#" . screenOffset) tail
 
 
 randomPosition :: State GameState Position

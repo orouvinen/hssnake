@@ -18,8 +18,20 @@ main = do
         Right gameState -> putStrLn $ "Game over!\nFinal score: " ++ (show $ score gameState)
 
 
+initEnv :: Curses GameEnv
+initEnv = do
+    headColor <- newColorID headColor ColorDefault 1
+    bodyColor <- newColorID bodyColor ColorDefault 2
+    omnomColor <- newColorID omnomColor ColorDefault 3
+    return GameEnv
+        { headColorID = headColor
+        , bodyColorID = bodyColor
+        , omnomColorID = omnomColor
+        }
+
+
 runGame :: GameState -> IO (Either String GameState)
-runGame startState = do
+runGame initialState = do
     termBigEnough <- runCurses $ do
         (h, w) <- screenSize
         return $ h >= toInteger totalHeight && w >= toInteger totalWidth
@@ -36,10 +48,9 @@ runGame startState = do
                 w <- defaultWindow
                 updateWindow w $ do
                     resizeWindow (toInteger totalHeight) (toInteger totalWidth)
+                    clear
 
-                -- Initial clear screen
-                defaultWindow >>= flip updateWindow clear
-
-                gameLoop startState >>= return
+                gameEnv <- initEnv
+                gameLoop gameEnv initialState >>= return
             return $ Right endState
     
