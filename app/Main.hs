@@ -1,9 +1,9 @@
 module Main where
 
-import UI.NCurses
-import System.Random
+import           System.Random
+import           UI.NCurses
 
-import HsWorm
+import           HsWorm
 
 main :: IO ()
 main = do
@@ -13,35 +13,41 @@ main = do
     let firstOmnom = Position { x = omnomX, y = omnomY }
     g <- getStdGen
     res <- runGame initialState { omnom = firstOmnom, randomGen = g }
-    case res of 
+    case res of
         Left err -> putStrLn err
-        Right gameState -> putStrLn $ "Game over!\nFinal score: " ++ (show $ score gameState)
+        Right gameState ->
+            putStrLn $ "Game over!\nFinal score: " ++ (show $ score gameState)
 
 
 initEnv :: Curses GameEnv
 initEnv = do
-    headColor <- newColorID headColor ColorDefault 1
-    bodyColor <- newColorID bodyColor ColorDefault 2
-    omnomColor <- newColorID omnomColor ColorDefault 3
+    headColorDef <- newColorID headColor ColorDefault 1
+    bodyColorDef <- newColorID bodyColor ColorDefault 2
+    omnomColorDef <- newColorID omnomColor ColorDefault 3
     return GameEnv
-        { headColorID = headColor
-        , bodyColorID = bodyColor
-        , omnomColorID = omnomColor
+        { headColorID = headColorDef
+        , bodyColorID = bodyColorDef
+        , omnomColorID = omnomColorDef
         }
 
 
 runGame :: GameState -> IO (Either String GameState)
-runGame initialState = do
+runGame startState = do
     termBigEnough <- runCurses $ do
         (h, w) <- screenSize
         return $ h >= toInteger totalHeight && w >= toInteger totalWidth
-    
+
     case termBigEnough of
-        False -> return $ Left $ "You need at least " ++ show totalWidth ++ "x" ++
-                                 show (totalHeight + 1) ++ " size terminal."
+        False ->
+            return
+                $ Left $ "You need at least "
+                ++ show totalWidth
+                ++ "x"
+                ++ show (totalHeight + 1)
+                ++ " size terminal."
         True -> do
             endState <- runCurses $ do
-                setCursorMode CursorInvisible
+                _ <- setCursorMode CursorInvisible
                 setEcho False
 
                 -- resize window to make room for 1 char width border on each side
@@ -51,6 +57,6 @@ runGame initialState = do
                     clear
 
                 gameEnv <- initEnv
-                gameLoop gameEnv initialState >>= return
+                gameLoop gameEnv startState >>= return
             return $ Right endState
-    
+
