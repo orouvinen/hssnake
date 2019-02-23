@@ -1,5 +1,5 @@
 module Main where
-
+import           Data.Time.Clock.POSIX
 import           System.Random
 import           UI.NCurses
 
@@ -10,7 +10,14 @@ main = do
     -- Random initial meal position
     omnomX <- getStdRandom $ randomR (0, gameWidth - 1)
     omnomY <- getStdRandom $ randomR (0, gameHeight - 1)
-    let firstOmnom = Position { x = omnomX, y = omnomY }
+    now <- (round . (* 1000)) <$> getPOSIXTime
+    let firstOmnom = Omnom
+            { position = Position
+                         { x = omnomX
+                         , y = omnomY
+                         }
+            , endTime = now + omnomTime
+            }
     g <- getStdGen
     res <- runGame initialState { omnom = firstOmnom, randomGen = g }
     case res of
