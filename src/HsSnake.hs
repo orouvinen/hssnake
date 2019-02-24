@@ -1,4 +1,4 @@
-module HsWorm where
+module HsSnake where
 
 import           Control.Monad.Reader
 import           Control.Monad.State
@@ -21,8 +21,8 @@ instance Eq Position where
     (==) a b = x a == x b && y a == y b
 
 
-initialWormLength :: Int
-initialWormLength = 3
+initialSnakeLength :: Int
+initialSnakeLength = 3
 
 omnomTime :: Milliseconds
 omnomTime = 10000
@@ -61,7 +61,7 @@ data Omnom = Omnom
     } deriving Show
 
 data GameState = GameState
-    { worm           :: [Position]
+    { snake          :: [Position]
     , direction      :: Direction
     , alive          :: Bool
     , score          :: Int
@@ -74,7 +74,7 @@ data GameState = GameState
     {- Using 'clear' on every update would cause unwanted flickering. As a remedy,
        keep track of screen positions that have cleared so they can be erased
        by drawing a space character
-       (in reality, the only thing that needs clearing is the previous worm tail's
+       (in reality, the only thing that needs clearing is the previous snake's tail's
        last piece)
     -}
     , clearPositions :: [Position]
@@ -82,10 +82,10 @@ data GameState = GameState
 
 initialState :: GameState
 initialState = GameState
-    { worm = [ Position
+    { snake = [ Position
                { x = gameWidth `div` 2 + x'
                , y = gameHeight `div` 2
-               } | x' <- [0.. initialWormLength - 1]
+               } | x' <- [0.. initialSnakeLength - 1]
              ]
     , direction = DirLeft
     , alive = True
@@ -98,6 +98,9 @@ initialState = GameState
     , clearPositions = []
     , randomGen = mkStdGen 0
     }
+
+fromState :: (GameState -> a) -> State GameState a
+fromState = flip fmap (get >>= pure)
 
 gameLoop :: GameEnv -> GameState -> Curses GameState
 gameLoop env st = do
@@ -117,7 +120,6 @@ gameLoop env st = do
                      else pure ()
              in renderAction >> gameLoop env s
 
-
 updateGame :: Milliseconds -> Maybe Event -> State GameState Bool
 updateGame now event = do
     handleInput event
@@ -126,38 +128,37 @@ updateGame now event = do
     nextUpdate <- nextUpdateAt
 
     if now > nextUpdate
-        then do s' <- moveWorm
+        then do s' <- moveSnake
                 put s' { lastUpdate = now }
                 pure True
         else pure False
 
-isWormAlive :: GameState -> Bool
-isWormAlive s =
-    let wormX = (x . head . worm) s
-        wormY = (y . head . worm) s
-        isInsideGameArea = wormX >= 0 && wormX <= gameWidth &&
-                           wormY >= 0 && wormY < gameHeight
+isSnakeAlive :: State GameState Bool
+isSnakeAlive = do
+    selfCollision' <- selfCollision
+    omnomMissed' <- omnomMissed
+    snake' <- get >>= \s -> pure $ snake s
 
-    in
-        isInsideGameArea &&
-        (not $ selfCollision $ worm s) &&
-        (not $ omnomMissed s)
+    let snakeX = (x . head) snake'
+        snakeY = (y . head) snake'
+        isInsideGameArea = snakeX >= 0 && snakeX <= gameWidth &&
+                           snakeY >= 0 && snakeY < gameHeight
 
-omnomMissed :: GameState -> Bool
-omnomMissed s =
-    currentTick' > endTime (omnom') &&
-    head worm' /= position omnom'
-    where
-        currentTick' = currentTick s
-        worm' = worm s
-        omnom' = omnom s
+    pure $ isInsideGameArea && not selfCollision' && not omnomMissed'
 
+omnomMissed :: State GameState Bool
+omnomMissed = do
+    snakePos <- fromState (head . snake)
+    currentTick' <- fromState currentTick
+    omnomEnd <- fromState (endTime . omnom)
+    omnomPos <- fromState (position . omnom)
+    pure $ currentTick' > omnomEnd && snakePos /= omnomPos
 
 nextUpdateAt :: State GameState Milliseconds
 nextUpdateAt = get >>= \s -> pure $ lastUpdate s + moveInterval s
 
 willEat :: State GameState Bool
-willEat = get >>= \s -> pure $ (head . worm) s == (position . omnom) s
+willEat = get >>= \s -> pure $ (head . snake) s == (position . omnom) s
 
 tryToEat :: State GameState Bool
 tryToEat = do
@@ -166,23 +167,23 @@ tryToEat = do
     omnom' <- if hadMeal
               then randomPosition >>=
                    \p -> pure Omnom { position = Position { x = x p
-                                                            , y = y p
-                                                            },
-                                        endTime = (currentTick') + omnomTime
-                                      }
+                                                          , y = y p
+                                                          }
+                                     , endTime = (currentTick') + omnomTime
+                                     }
               else get >>= \s -> pure $ omnom s
     s <- get
     put s { omnom = omnom', score = score s + if hadMeal then 1 else 0 }
     pure hadMeal
 
-moveWorm :: State GameState GameState
-moveWorm = do
+moveSnake :: State GameState GameState
+moveSnake = do
     hadMeal <- tryToEat
     s <- get
-    let w = worm s
+    let snake' = snake s
 
     let newHeadPos =
-            let pos = head w
+            let pos = head snake'
             in
                 case direction s of
                     DirDown  -> pos { y = (+) (y $ pos) 1 }
@@ -190,13 +191,13 @@ moveWorm = do
                     DirLeft  -> pos { x = (-) (x $ pos) 1 }
                     DirRight -> pos { x = (+) (x $ pos) 1 }
 
-        worm' = if hadMeal
-                then newHeadPos : head w : init w
-                else newHeadPos : init w
+        snake'' = if hadMeal
+                then newHeadPos : head snake' : init snake'
+                else newHeadPos : init snake'
 
-    put s { worm = worm'
-          , clearPositions = last worm' : clearPositions s
-          , alive = isWormAlive s
+    put s { snake = snake''
+          , clearPositions = last snake'' : clearPositions s
+          , alive = evalState isSnakeAlive s
           }
     get >>= pure
 
@@ -232,9 +233,10 @@ randomNum lower upper = do
     put $ s { randomGen = g' }
     pure x'
 
-selfCollision :: [Position] -> Bool
-selfCollision []            = False
-selfCollision (head':tail') = any (== head') tail'
+selfCollision :: State GameState Bool
+selfCollision = do
+    snake' <- fromState snake
+    pure $ any (== head snake') (tail snake')
 
 nonBlockingPeekEvent :: Window -> Curses (Maybe Event)
 nonBlockingPeekEvent w = getEvent w (Just 0)
@@ -242,7 +244,7 @@ nonBlockingPeekEvent w = getEvent w (Just 0)
 drawGame :: GameState -> ReaderT GameEnv Update ()
 drawGame s = do
     env <- ask
-    drawWorm $ worm s
+    drawSnake $ snake s
     lift $ do
         mapM_ (stringPos " ") (fmap screenOffset (clearPositions s))
 
@@ -259,9 +261,9 @@ drawGame s = do
         let timeLeft = (fromIntegral (endTime (omnom s) - currentTick s)) / 1000 :: Float
         drawString $ printf "Time left: %.1f" timeLeft
 
-drawWorm :: [Position] -> ReaderT GameEnv Update ()
-drawWorm [] = pure ()
-drawWorm (head':tail') = do
+drawSnake :: [Position] -> ReaderT GameEnv Update ()
+drawSnake [] = pure ()
+drawSnake (head':tail') = do
     env <- ask
     lift $ do
         setColor $ headColorID env

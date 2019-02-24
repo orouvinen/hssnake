@@ -3,7 +3,7 @@ import           Data.Time.Clock.POSIX
 import           System.Random
 import           UI.NCurses
 
-import           HsWorm
+import           HsSnake
 
 main :: IO ()
 main = do
