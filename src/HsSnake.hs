@@ -137,7 +137,7 @@ isSnakeAlive :: State GameState Bool
 isSnakeAlive = do
     selfCollision' <- selfCollision
     omnomMissed' <- omnomMissed
-    snake' <- get >>= \s -> pure $ snake s
+    snake' <- fromState snake
 
     let snakeX = (x . head) snake'
         snakeY = (y . head) snake'
@@ -171,7 +171,7 @@ tryToEat = do
                                                           }
                                      , endTime = (currentTick') + omnomTime
                                      }
-              else get >>= \s -> pure $ omnom s
+              else fromState omnom
     s <- get
     put s { omnom = omnom', score = score s + if hadMeal then 1 else 0 }
     pure hadMeal
@@ -179,24 +179,25 @@ tryToEat = do
 moveSnake :: State GameState GameState
 moveSnake = do
     hadMeal <- tryToEat
-    s <- get
-    let snake' = snake s
+    snake <- fromState snake
+    direction <- fromState direction
 
     let newHeadPos =
-            let pos = head snake'
+            let pos = head snake
             in
-                case direction s of
+                case direction of
                     DirDown  -> pos { y = (+) (y $ pos) 1 }
                     DirUp    -> pos { y = (-) (y $ pos) 1 }
                     DirLeft  -> pos { x = (-) (x $ pos) 1 }
                     DirRight -> pos { x = (+) (x $ pos) 1 }
 
-        snake'' = if hadMeal
-                then newHeadPos : head snake' : init snake'
-                else newHeadPos : init snake'
+        newSnake = if hadMeal
+                   then newHeadPos : head snake : init snake
+                   else newHeadPos : init snake
 
-    put s { snake = snake''
-          , clearPositions = last snake'' : clearPositions s
+    s <- get
+    put s { snake = newSnake
+          , clearPositions = last newSnake : clearPositions s
           , alive = evalState isSnakeAlive s
           }
     get >>= pure
