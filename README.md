@@ -1,6 +1,6 @@
-# HsWorm
+# HsSnake
 
-HsWorm is the classic ~~worm~~ snake game in a simple text-based form.
+HsSnake is the classic ~~worm~~ snake game in a simple text-based form.
 The main purpose for the game was to have a learning project in Haskell.
 
 You should be able to clone the repository and build the project
