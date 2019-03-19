@@ -155,26 +155,32 @@ omnomMissed = do
     pure $ currentTick' > omnomEnd && snakePos /= omnomPos
 
 nextUpdateAt :: State GameState Milliseconds
-nextUpdateAt = get >>= \s -> pure $ lastUpdate s + moveInterval s
+nextUpdateAt = (+) <$> fromState lastUpdate <*> fromState moveInterval
 
 willEat :: State GameState Bool
-willEat = get >>= \s -> pure $ (head . snake) s == (position . omnom) s
+willEat =
+    let snakePos = fromState (head . snake)
+        omnomPos = fromState (position . omnom)
+    in (==) <$> snakePos <*> omnomPos
 
 tryToEat :: State GameState Bool
 tryToEat = do
     hadMeal <- willEat
-    currentTick' <- get >>= \s -> pure $ currentTick s
-    omnom' <- if hadMeal
-              then randomPosition >>=
-                   \p -> pure Omnom { position = Position { x = x p
-                                                          , y = y p
-                                                          }
-                                     , endTime = (currentTick') + omnomTime
-                                     }
-              else fromState omnom
+    currentTick' <- fromState currentTick
+    omnom' <- if hadMeal then newOmnom else fromState omnom
     s <- get
     put s { omnom = omnom', score = score s + if hadMeal then 1 else 0 }
     pure hadMeal
+
+newOmnom :: State GameState Omnom
+newOmnom = do
+    now <- fromState currentTick
+    pos <- randomPosition
+    pure $ Omnom { position = Position { x = x pos
+                                       , y = y pos
+                                       }
+                 , endTime = now + omnomTime
+                 }
 
 moveSnake :: State GameState GameState
 moveSnake = do
@@ -227,17 +233,17 @@ randomPosition = do
     y' <- randomNum 0 gameHeight
     pure $ Position { x = x', y = y' }
 
+selfCollision :: State GameState Bool
+selfCollision = do
+    snake' <- fromState snake
+    pure $ any (== head snake') (tail snake')
+
 randomNum :: Int -> Int -> State GameState Int
 randomNum lower upper = do
     s <- get
     let (x', g') = randomR (lower, upper - 1) (randomGen s)
     put $ s { randomGen = g' }
     pure x'
-
-selfCollision :: State GameState Bool
-selfCollision = do
-    snake' <- fromState snake
-    pure $ any (== head snake') (tail snake')
 
 nonBlockingPeekEvent :: Window -> Curses (Maybe Event)
 nonBlockingPeekEvent w = getEvent w (Just 0)
