@@ -109,13 +109,15 @@ gameLoop env st = do
 
     if quit s || (not . alive) s
         then pure s
-        else let renderAction =
-                     if updated
-                     then defaultWindow >>=
-                          flip updateWindow drawUpdate >>
-                          render
-                     else pure ()
-             in renderAction >> gameLoop env s
+        else let renderGame =
+                    if updated then do
+                        w <- defaultWindow
+                        updateWindow w drawUpdate
+                        render
+                    else pure ()
+             in do
+                renderGame
+                gameLoop env s
 
 updateGame :: Milliseconds -> Maybe Event -> State GameState Bool
 updateGame now event = do

@@ -64,6 +64,6 @@ runGame startState = do
                     clear
 
                 gameEnv <- initEnv
-                gameLoop gameEnv startState >>= return
+                gameLoop gameEnv startState
             return $ Right endState
 

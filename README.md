@@ -13,3 +13,7 @@ Change direction with arrow keys. Press `q` to quit while in-game.
 If you run into your own tail or the walls, the game is over.
 The game also ends if you fail to eat the current omnom in 10 seconds.
 
+And finally, here's what it looks like:
+
+![Fire](screenshots/snake.gif?raw=true)
+
